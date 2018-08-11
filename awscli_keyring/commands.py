@@ -75,9 +75,24 @@ class ShowCommand(BasicCommand):
 
     ARG_TABLE = [
         {"name": "export", "action": "store_true", "help_text": "Prefix variables with \"export \""},
+        {"name": "format", "choices": ("bash", "fish"), "default": "bash", "help_text": "Output format for the command"},
     ]
 
     EXAMPLES = "Command::\n\n    aws keyring show\n\nOutput::\n\n    AWS_ACCESS_KEY_ID=\"ABC...\"\n    AWS_SECRET_ACCESS_KEY=\"123...\""
+
+    def _set_var(self, parsed_args, name, value):
+        if parsed_args.format == "fish":
+            set_format = "set{export} -g {name} '{value}';"
+            export_format = " -x"
+        else:
+            set_format = '{export}{name}="{value}"'
+            export_format = "export "
+
+        export = ""
+        if parsed_args.export:
+            export = export_format
+
+        return set_format.format(name=name, value=value, export=export)
 
     def _run_main(self, parsed_args, global_args):
         export = ""
@@ -85,10 +100,10 @@ class ShowCommand(BasicCommand):
             export = "export "
 
         if self._session._credentials:
-            print('{export}AWS_ACCESS_KEY_ID="{value}"'.format(export=export, value=self._session._credentials.access_key))
-            print('{export}AWS_SECRET_ACCESS_KEY="{value}"'.format(export=export, value=self._session._credentials.secret_key))
+            print(self._set_var(parsed_args, 'AWS_ACCESS_KEY_ID', self._session._credentials.access_key))
+            print(self._set_var(parsed_args, 'AWS_SECRET_ACCESS_KEY', self._session._credentials.secret_key))
             if getattr(self._session._credentials, "token", None) is not None:
-                print('{export}AWS_SESSION_TOKEN="{value}"'.format(export=export, value=self._session._credentials.token))
+                print(self._set_var(parsed_args, 'AWS_SESSION_TOKEN', self._session._credentials.token))
             return 0
         else:
             sys.stderr.write('There are no credentials to show.\n')
